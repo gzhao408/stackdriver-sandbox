@@ -58,17 +58,12 @@ The installation process takes a few minutes. When it completes, you see a messa
 ********************************************************************************
 Stackdriver Sandbox deployed successfully!
 
-     Stackdriver Dashboard: https://app.google.stackdriver.com/accounts/create
      Google Cloud Console Dashboard: https://console.cloud.google.com/kubernetes/workload?project=<project ID>
      Hipstershop web app address: http://XX.XX.XX.XX
      Load generator web interface: http://XX.XX.XX.XX
 ```
 
 The URLs in this message tell you where to find the results of the installation:
-
--  The **Stackdriver Dashboard URL** is where you will end up when you go to Stackdriver Monitoring from the GCP console. The GCP project created by the installer must be part of a Workspace in Stackdriver Monitoring.  A Workspace ([documentation](https://cloud.google.com/monitoring/workspaces/)) is a Stackdriver concept for organizing multiple GCP projects.
-
-> A Workspace will be created automatically for your project if you don't have one already, so you don't have to do anything explicitly with this URL.
 
 -  The **Google Cloud Console** **Dashboard** URL takes you to the Kubernetes Engine console for your deployment.
 
