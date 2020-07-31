@@ -2,7 +2,7 @@
 import os
 import sys
 import unittest
-from google.cloud import trace_v1
+from google.cloud.trace_v1 import trace_service_client
 
 project_id = ''
 
@@ -16,8 +16,8 @@ def get_project_id():
 class CloudTracingTest(unittest.TestCase):
     def test_trace_opentelemetry(self):
         """Make sure we are receiving  traces from opentelemetry-go 0.9.0 in Google Cloud Trace"""
-        client = trace_v1.TraceServiceClient()
-        for trace in client.list_traces(project_id):
+        client = trace_service_client.TraceServiceClient().from_service_account_json(os.environ['GOOGLE_APPLICATION_CREDENTIALS'])
+        for trace in client.list_traces(project_id, filter_='g.co/agent:opentelemetry'):
             print(trace)
 
 if __name__ == '__main__':
