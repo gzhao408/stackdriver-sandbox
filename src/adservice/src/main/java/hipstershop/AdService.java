@@ -16,6 +16,8 @@
 
 package hipstershop;
 
+import com.google.cloud.opentelemetry.trace.TraceConfiguration;
+import com.google.cloud.opentelemetry.trace.TraceExporter;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -28,17 +30,23 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.health.v1.HealthCheckResponse.ServingStatus;
 import io.grpc.services.*;
 import io.grpc.stub.StreamObserver;
-import io.opencensus.common.Duration;
-import io.opencensus.contrib.grpc.metrics.RpcViews;
-import io.opencensus.exporter.stats.stackdriver.StackdriverStatsConfiguration;
-import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
-import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
-import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
-import io.opencensus.trace.AttributeValue;
-import io.opencensus.trace.Span;
-import io.opencensus.trace.Tracer;
-import io.opencensus.trace.Tracing;
+// import io.opencensus.common.Duration;
+// import io.opencensus.contrib.grpc.metrics.RpcViews;
+// import io.opencensus.exporter.stats.stackdriver.StackdriverStatsConfiguration;
+// import io.opencensus.exporter.stats.stackdriver.StackdriverStatsExporter;
+// import io.opencensus.exporter.trace.stackdriver.StackdriverTraceConfiguration;
+// import io.opencensus.exporter.trace.stackdriver.StackdriverTraceExporter;
+// import io.opencensus.trace.AttributeValue;
+// import io.opencensus.trace.Span;
+// import io.opencensus.trace.Tracer;
+// import io.opencensus.trace.Tracing;
+import io.opentelemetry.OpenTelemetry;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
+import io.opentelemetry.trace.Span;
+import io.opentelemetry.trace.Tracer;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -51,13 +59,32 @@ import org.apache.logging.log4j.Logger;
 public final class AdService {
 
   private static final Logger logger = LogManager.getLogger(AdService.class);
-  private static final Tracer tracer = Tracing.getTracer();
+  // private static final Tracer tracer = Tracing.getTracer();
+
+  private TraceExporter traceExporter;
+  private Tracer tracer = OpenTelemetry.getTracer("adservice");
 
   private static int MAX_ADS_TO_SERVE = 2;
   private Server server;
   private HealthStatusManager healthMgr;
 
   private static final AdService service = new AdService();
+
+  private void setupTraceExporter() {
+    // Using default project ID and Credentials
+    TraceConfiguration configuration =
+        TraceConfiguration.builder().setDeadline(Duration.ofMillis(30000)).build();
+
+    try {
+      this.traceExporter = TraceExporter.createWithConfiguration(configuration);
+
+      // Register the TraceExporter with OpenTelemetry
+      OpenTelemetrySdk.getTracerProvider()
+          .addSpanProcessor(BatchSpanProcessor.newBuilder(this.traceExporter).build());
+    } catch (IOException e) {
+      System.out.println("Uncaught Exception");
+    }
+  }
 
   private void start() throws IOException {
     int port = Integer.parseInt(System.getenv("PORT"));
@@ -103,30 +130,30 @@ public final class AdService {
     @Override
     public void getAds(AdRequest req, StreamObserver<AdResponse> responseObserver) {
       AdService service = AdService.getInstance();
-      Span span = tracer.getCurrentSpan();
+      // Span span = tracer.getCurrentSpan();
       try {
-        span.putAttribute("method", AttributeValue.stringAttributeValue("getAds"));
+        // span.putAttribute("method", AttributeValue.stringAttributeValue("getAds"));
         List<Ad> allAds = new ArrayList<>();
         logger.info("received ad request (context_words=" + req.getContextKeysList() + ")");
         if (req.getContextKeysCount() > 0) {
-          span.addAnnotation(
-              "Constructing Ads using context",
-              ImmutableMap.of(
-                  "Context Keys",
-                  AttributeValue.stringAttributeValue(req.getContextKeysList().toString()),
-                  "Context Keys length",
-                  AttributeValue.longAttributeValue(req.getContextKeysCount())));
+          // span.addAnnotation(
+          //     "Constructing Ads using context",
+          //     ImmutableMap.of(
+          //         "Context Keys",
+          //         AttributeValue.stringAttributeValue(req.getContextKeysList().toString()),
+          //         "Context Keys length",
+          //         AttributeValue.longAttributeValue(req.getContextKeysCount())));
           for (int i = 0; i < req.getContextKeysCount(); i++) {
             Collection<Ad> ads = service.getAdsByCategory(req.getContextKeys(i));
             allAds.addAll(ads);
           }
         } else {
-          span.addAnnotation("No Context provided. Constructing random Ads.");
+          // span.addAnnotation("No Context provided. Constructing random Ads.");
           allAds = service.getRandomAds();
         }
         if (allAds.isEmpty()) {
           // Serve random ads.
-          span.addAnnotation("No Ads found based on context. Constructing random Ads.");
+          // span.addAnnotation("No Ads found based on context. Constructing random Ads.");
           allAds = service.getRandomAds();
         }
         AdResponse reply = AdResponse.newBuilder().addAllAds(allAds).build();
@@ -212,64 +239,65 @@ public final class AdService {
         .build();
   }
 
-  private static void initStackdriver() {
-    logger.info("Initialize StackDriver");
+  // private static void initStackdriver() {
+  //   logger.info("Initialize StackDriver");
 
-    long sleepTime = 10; /* seconds */
-    int maxAttempts = 5;
-    boolean statsExporterRegistered = false;
-    boolean traceExporterRegistered = false;
+  //   long sleepTime = 10; /* seconds */
+  //   int maxAttempts = 5;
+  //   boolean statsExporterRegistered = false;
+  //   // boolean traceExporterRegistered = false;
 
-    for (int i = 0; i < maxAttempts; i++) {
-      try {
-        if (!traceExporterRegistered) {
-          StackdriverTraceExporter.createAndRegister(
-              StackdriverTraceConfiguration.builder().build());
-          traceExporterRegistered = true;
-        }
-        if (!statsExporterRegistered) {
-          StackdriverStatsExporter.createAndRegister(
-              StackdriverStatsConfiguration.builder()
-                  .setExportInterval(Duration.create(60, 0))
-                  .build());
-          statsExporterRegistered = true;
-        }
-      } catch (Exception e) {
-        if (i == (maxAttempts - 1)) {
-          logger.log(
-              Level.WARN,
-              "Failed to register Stackdriver Exporter."
-                  + " Tracing and Stats data will not reported to Stackdriver. Error message: "
-                  + e.toString());
-        } else {
-          logger.info("Attempt to register Stackdriver Exporter in " + sleepTime + " seconds ");
-          try {
-            Thread.sleep(TimeUnit.SECONDS.toMillis(sleepTime));
-          } catch (Exception se) {
-            logger.log(Level.WARN, "Exception while sleeping" + se.toString());
-          }
-        }
-      }
-    }
-    logger.info("StackDriver initialization complete.");
-  }
+  //   for (int i = 0; i < maxAttempts; i++) {
+  //     try {
+        // if (!traceExporterRegistered) {
+        //   StackdriverTraceExporter.createAndRegister(
+        //       StackdriverTraceConfiguration.builder().build());
+        //   traceExporterRegistered = true;
+        // }
+  //       if (!statsExporterRegistered) {
+  //         StackdriverStatsExporter.createAndRegister(
+  //             StackdriverStatsConfiguration.builder()
+  //                 // .setExportInterval(Duration.create(60, 0))
+  //                 .build());
+  //         statsExporterRegistered = true;
+  //       }
+  //     } catch (Exception e) {
+  //       if (i == (maxAttempts - 1)) {
+  //         logger.log(
+  //             Level.WARN,
+  //             "Failed to register Stackdriver Exporter."
+  //                 + " Tracing and Stats data will not reported to Stackdriver. Error message: "
+  //                 + e.toString());
+  //       } else {
+  //         logger.info("Attempt to register Stackdriver Exporter in " + sleepTime + " seconds ");
+  //         try {
+  //           Thread.sleep(TimeUnit.SECONDS.toMillis(sleepTime));
+  //         } catch (Exception se) {
+  //           logger.log(Level.WARN, "Exception while sleeping" + se.toString());
+  //         }
+  //       }
+  //     }
+  //   }
+  //   logger.info("StackDriver initialization complete.");
+  // }
 
   /** Main launches the server from the command line. */
   public static void main(String[] args) throws IOException, InterruptedException {
     // Registers all RPC views.
-    RpcViews.registerAllGrpcViews();
+    // RpcViews.registerAllGrpcViews();
 
-    new Thread(
-            new Runnable() {
-              public void run() {
-                initStackdriver();
-              }
-            })
-        .start();
+    // new Thread(
+    //         new Runnable() {
+    //           public void run() {
+    //             initStackdriver();
+    //           }
+    //         })
+    //     .start();
 
     // Start the RPC server. You shouldn't see any output from gRPC before this.
     logger.info("AdService starting.");
     final AdService service = AdService.getInstance();
+    service.setupTraceExporter();
     service.start();
     service.blockUntilShutdown();
   }

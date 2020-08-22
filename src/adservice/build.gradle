@@ -14,9 +14,11 @@ description = 'Ad Service'
 group = "adservice"
 version = "0.1.0-SNAPSHOT"
 
-def opencensusVersion = "0.26.0"
-def grpcVersion = "1.31.0"
+// def opencensusVersion = "0.26.0"
+def grpcVersion = "1.28.1"
 def jacksonVersion = "2.11.2"
+def openTelemetryVersion = "0.7.0"
+def opentelemetryOperationsVersion = "0.7.1"
 def protocVersion = "3.12.3"
 
 tasks.withType(JavaCompile) {
@@ -34,13 +36,16 @@ dependencies {
         implementation fileTree(dir: offlineCompile, include: '*.jar')
     } else {
         implementation "com.google.api.grpc:proto-google-common-protos:1.18.0",
-                "io.opencensus:opencensus-api:${opencensusVersion}",
-                "io.opencensus:opencensus-contrib-grpc-metrics:${opencensusVersion}",
-                "io.opencensus:opencensus-contrib-grpc-util:${opencensusVersion}",
-                "io.opencensus:opencensus-exporter-trace-jaeger:${opencensusVersion}",
-                "io.opencensus:opencensus-exporter-stats-stackdriver:${opencensusVersion}",
-                "io.opencensus:opencensus-exporter-trace-stackdriver:${opencensusVersion}",
-                "io.opencensus:opencensus-exporter-trace-logging:${opencensusVersion}",
+                // "io.opencensus:opencensus-api:${opencensusVersion}",
+                // "io.opencensus:opencensus-contrib-grpc-metrics:${opencensusVersion}",
+                // "io.opencensus:opencensus-contrib-grpc-util:${opencensusVersion}",
+                // "io.opencensus:opencensus-exporter-trace-jaeger:${opencensusVersion}",
+                // "io.opencensus:opencensus-exporter-stats-stackdriver:${opencensusVersion}",
+                // "io.opencensus:opencensus-exporter-trace-stackdriver:${opencensusVersion}",
+                // "io.opencensus:opencensus-exporter-trace-logging:${opencensusVersion}",
+                "io.opentelemetry:opentelemetry-api:${openTelemetryVersion}",
+                "io.opentelemetry:opentelemetry-sdk:${openTelemetryVersion}",
+                "com.google.cloud.opentelemetry:exporter-trace:${opentelemetryOperationsVersion}",
                 "io.grpc:grpc-protobuf:${grpcVersion}",
                 "io.grpc:grpc-stub:${grpcVersion}",
                 "io.grpc:grpc-netty:${grpcVersion}",
@@ -49,9 +54,9 @@ dependencies {
 
         runtimeOnly "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}",
                 "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}",
-                "io.opencensus:opencensus-contrib-log-correlation-log4j2:${opencensusVersion}",
-                "io.opencensus:opencensus-impl:${opencensusVersion}",
-                "io.netty:netty-tcnative-boringssl-static:2.0.31.Final"
+                // "io.opencensus:opencensus-contrib-log-correlation-log4j2:${opencensusVersion}",
+                // "io.opencensus:opencensus-impl:${opencensusVersion}",
+                "io.netty:netty-tcnative-boringssl-static:2.0.30.Final"
     }
 }
 
