@@ -24,9 +24,16 @@ import com.google.common.collect.Iterables;
 import hipstershop.Demo.Ad;
 import hipstershop.Demo.AdRequest;
 import hipstershop.Demo.AdResponse;
+import io.grpc.Context;
+import io.grpc.Contexts;
+import io.grpc.Grpc;
+import io.grpc.Metadata;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerCall;
+import io.grpc.ServerCallHandler;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 import io.grpc.health.v1.HealthCheckResponse.ServingStatus;
 import io.grpc.services.*;
 import io.grpc.stub.StreamObserver;
@@ -41,9 +48,13 @@ import io.grpc.stub.StreamObserver;
 // import io.opencensus.trace.Tracer;
 // import io.opencensus.trace.Tracing;
 import io.opentelemetry.OpenTelemetry;
+import io.opentelemetry.context.ContextUtils;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.HttpTextFormat;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.trace.Span;
+import io.opentelemetry.trace.Status;
 import io.opentelemetry.trace.Tracer;
 import java.io.IOException;
 import java.time.Duration;
@@ -70,6 +81,22 @@ public final class AdService {
 
   private static final AdService service = new AdService();
 
+  // Share context via text
+  HttpTextFormat textFormat = OpenTelemetry.getPropagators().getHttpTextFormat();;
+
+  // getter extracts the Distributed Context from the gRPC metadata
+  HttpTextFormat.Getter<Metadata> getter =
+      new HttpTextFormat.Getter<Metadata>() {
+        @Override
+        public String get(Metadata carrier, String key) {
+          Metadata.Key<String> k = Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER);
+          if (carrier.containsKey(k)) {
+            return carrier.get(k);
+          }
+          return "";
+        }
+      };
+
   private void setupTraceExporter() {
     // Using default project ID and Credentials
     TraceConfiguration configuration =
@@ -94,6 +121,7 @@ public final class AdService {
         ServerBuilder.forPort(port)
             .addService(new AdServiceImpl())
             .addService(healthMgr.getHealthService())
+            .intercept(new OpenTelemetryServerInterceptor())
             .build()
             .start();
     logger.info("Ad Service started, listening on " + port);
@@ -106,6 +134,8 @@ public final class AdService {
                 System.err.println("*** shutting down gRPC ads server since JVM is shutting down");
                 AdService.this.stop();
                 System.err.println("*** server shut down");
+                traceExporter.shutdown();
+                System.err.println("*** Trace Exporter shut down");
               }
             });
     healthMgr.setStatus("", ServingStatus.SERVING);
@@ -130,7 +160,7 @@ public final class AdService {
     @Override
     public void getAds(AdRequest req, StreamObserver<AdResponse> responseObserver) {
       AdService service = AdService.getInstance();
-      // Span span = tracer.getCurrentSpan();
+
       try {
         // span.putAttribute("method", AttributeValue.stringAttributeValue("getAds"));
         List<Ad> allAds = new ArrayList<>();
@@ -280,6 +310,33 @@ public final class AdService {
   //   }
   //   logger.info("StackDriver initialization complete.");
   // }
+
+  private class OpenTelemetryServerInterceptor implements io.grpc.ServerInterceptor {
+    @Override
+    public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(
+        ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
+      // Extract the Span Context from the metadata of the gRPC request
+      // The Span Context is in the headers and the HttpTextFormat getter finds the kye==ey
+      Context extractedContext = textFormat.extract(Context.current(), headers, getter);
+      // Build a span based on the received context
+      try (Scope scope = ContextUtils.withScopedContext(extractedContext)) {
+        Span span =
+            tracer
+                .spanBuilder("hipstershop.adservice")
+                .setSpanKind(Span.Kind.SERVER)
+                .startSpan();
+        span.setAttribute("component", "grpc");
+        span.setAttribute("rpc.service", "adservice");
+        // Process the gRPC call normally
+        try {
+          span.setStatus(Status.OK);
+          return Contexts.interceptCall(Context.current(), call, headers, next);
+        } finally {
+          span.end();
+        }
+      }
+    }
+  }
 
   /** Main launches the server from the command line. */
   public static void main(String[] args) throws IOException, InterruptedException {
