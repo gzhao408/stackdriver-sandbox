@@ -203,7 +203,7 @@ def _create_job(name, zone, target_address, scenario=None):
             ' --zone={2}'
             ' --machine-type=g1-small'
             ' --tags=locust-web'
-            ' --container-image=gcr.io/stackdriver-sandbox-230822/sandbox/loadgenerator:latest'
+            ' --container-image=gcr.io/stackdriver-sandbox-230822/sandbox/loadgenerator:v0.1.14'
             ' --container-env="FRONTEND_ADDR={1}"'
             ' --container-arg="--web-port={3}"' 
             ).format(name, target_address, zone, JOB_WEB_PORT)
